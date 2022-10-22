@@ -1,4 +1,9 @@
-use std::{alloc, mem, ptr, slice};
+use std::{
+    alloc, mem,
+    ops::{Deref, DerefMut, Index},
+    ptr,
+    slice::{self, SliceIndex},
+};
 
 pub struct MVec<T> {
     ptr: ptr::NonNull<T>,
@@ -16,18 +21,41 @@ impl<T> Default for MVec<T> {
     }
 }
 
+impl<T> Deref for MVec<T> {
+    type Target = [T];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
+    }
+}
+
+impl<T> DerefMut for MVec<T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
+    }
+}
+
+impl<T, I: SliceIndex<[T]>> Index<I> for MVec<T> {
+    type Output = I::Output;
+
+    #[inline]
+    fn index(&self, index: I) -> &Self::Output {
+        Index::index(&**self, index)
+    }
+}
+
 impl<T> Drop for MVec<T> {
     fn drop(&mut self) {
-        println!("Dropping vec");
         unsafe {
-            // Drop vector items
-            let slices = slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len);
             let layout = alloc::Layout::from_size_align_unchecked(
                 mem::size_of::<T>() * self.capacity,
                 mem::align_of::<T>(),
             );
-
-            ptr::drop_in_place(slices);
+            // Drop items
+            ptr::drop_in_place(self.deref_mut());
+            // Drop pointer
             alloc::dealloc(self.ptr.as_ptr() as _, layout);
         }
     }
@@ -59,7 +87,6 @@ impl<T> MVec<T> {
                 let ptr = alloc::alloc(layout) as *mut T;
                 self.ptr = ptr::NonNull::new_unchecked(ptr);
                 self.ptr.as_ptr().write(item);
-                self.len += 1;
             }
         } else if self.len.lt(&self.capacity) {
             let offset = self
@@ -71,8 +98,6 @@ impl<T> MVec<T> {
             unsafe {
                 self.ptr.as_ptr().add(self.len).write(item);
             }
-
-            self.len += 1;
         } else {
             let size = t_size * self.capacity;
             let align = mem::align_of::<T>();
@@ -97,15 +122,19 @@ impl<T> MVec<T> {
             }
 
             self.capacity += 1;
-            self.len += 1;
         }
+
+        self.len += 1;
     }
 
-    pub fn get(&self, index: usize) -> Option<&T> {
-        if index >= self.len {
+    pub fn pop(&mut self) -> Option<T> {
+        if self.len.eq(&0) {
             None
         } else {
-            Some(unsafe { &*self.ptr.as_ptr().add(index) })
+            unsafe {
+                self.len -= 1;
+                Some(ptr::read(self.ptr.as_ptr().add(self.len)))
+            }
         }
     }
 }
@@ -125,7 +154,13 @@ mod tests {
         assert_eq!(vec.len(), 4);
         assert_eq!(vec.capacity(), 4);
 
+        assert_eq!(vec.first(), Some(&1));
+        assert_eq!(vec.deref(), &[1, 2, 3, 4]);
+        assert_eq!(vec[0], 1);
+
         assert_eq!(vec.get(0), Some(&1));
         assert_eq!(vec.get(1), Some(&2));
+        assert_eq!(vec.pop(), Some(4));
+        assert_eq!(vec.len(), 3);
     }
 }
