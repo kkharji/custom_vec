@@ -1,0 +1,11 @@
+[tasks.audit]
+command = "cargo"
+args = ["audit"]
+
+[tasks.test]
+command = "cargo"
+args = ["watch", "-x", "nextest run --no-fail-fast --no-capture"]
+
+[tasks.run]
+command = "cargo"
+args = ["run"]
