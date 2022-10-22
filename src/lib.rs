@@ -1,4 +1,4 @@
-use std::{alloc, mem, ptr};
+use std::{alloc, mem, ptr, slice};
 
 pub struct MVec<T> {
     ptr: ptr::NonNull<T>,
@@ -12,6 +12,23 @@ impl<T> Default for MVec<T> {
             ptr: ptr::NonNull::dangling(),
             len: Default::default(),
             capacity: Default::default(),
+        }
+    }
+}
+
+impl<T> Drop for MVec<T> {
+    fn drop(&mut self) {
+        println!("Dropping vec");
+        unsafe {
+            // Drop vector items
+            let slices = slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len);
+            let layout = alloc::Layout::from_size_align_unchecked(
+                mem::size_of::<T>() * self.capacity,
+                mem::align_of::<T>(),
+            );
+
+            ptr::drop_in_place(slices);
+            alloc::dealloc(self.ptr.as_ptr() as _, layout);
         }
     }
 }
