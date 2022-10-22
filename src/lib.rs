@@ -137,6 +137,26 @@ impl<T> MVec<T> {
             }
         }
     }
+
+    pub fn remove(&mut self, index: usize) -> T {
+        if index >= self.len {
+            panic!(
+                "removal index (is {index}) should be < len (is {})",
+                self.len
+            )
+        } else {
+            unsafe {
+                let item;
+                let ptr = self.as_mut_ptr().add(index);
+                // Copy
+                item = ptr::read(ptr);
+                // Shift
+                ptr::copy(ptr.offset(1), ptr, self.len - index - 1);
+                self.len -= 1;
+                item
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -161,6 +181,8 @@ mod tests {
         assert_eq!(vec.get(0), Some(&1));
         assert_eq!(vec.get(1), Some(&2));
         assert_eq!(vec.pop(), Some(4));
-        assert_eq!(vec.len(), 3);
+        let second_item = vec.remove(2);
+        assert_eq!(second_item, 3);
+        assert_eq!(vec.len(), 2);
     }
 }
